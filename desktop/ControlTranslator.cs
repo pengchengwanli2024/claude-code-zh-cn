@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
+using System.Threading.Tasks;
 using System.Text.RegularExpressions;
 using System.Windows.Automation;
 using System.Web.Script.Serialization;
@@ -17,7 +17,8 @@ sealed class ControlTranslator : IDisposable
     readonly Dictionary<string,string> cache = new Dictionary<string,string>();
     readonly List<string> pending = new List<string>();
     Process worker;
-    bool failed;
+    volatile bool failed;
+    bool running;
 
     internal ControlTranslator(string directory)
     {
@@ -27,16 +28,29 @@ sealed class ControlTranslator : IDisposable
 
     internal void Consider(string label, ControlType role)
     {
-        if (failed || pending.Count >= 12 || label == null || label.Length > 100) return;
+        if (failed || label == null || label.Length > 100) return;
         if (role != ControlType.Button && role != ControlType.MenuItem && role != ControlType.TabItem &&
             role != ControlType.RadioButton && role != ControlType.CheckBox) return;
         if (!Regex.IsMatch(label, @"^(?:Add|Allow|Apply|Cancel|Change|Check|Choose|Clear|Close|Configure|Continue|Copy|Create|Deny|Disable|Dismiss|Download|Edit|Enable|Expand|Export|Go|Hide|Import|Install|Load|Manage|Open|Pause|Remove|Rename|Reset|Resume|Retry|Run|Save|Select|Send|Set|Show|Sign|Start|Stop|Switch|Toggle|Update|Use|View) [A-Za-z][A-Za-z '’-]*$", RegexOptions.IgnoreCase)) return;
-        if (!cache.ContainsKey(label) && !pending.Contains(label)) pending.Add(label);
+        lock (cache) {
+            if (!running && pending.Count < 12 && !cache.ContainsKey(label) && !pending.Contains(label)) pending.Add(label);
+        }
     }
 
     internal void TranslatePending()
     {
-        if (pending.Count == 0) return;
+        string[] batch;
+        lock (cache) {
+            if (running || pending.Count == 0) return;
+            batch = pending.ToArray();
+            pending.Clear();
+            running = true;
+        }
+        Task.Run(() => Translate(batch));
+    }
+
+    void Translate(string[] batch)
+    {
         try {
             if (worker == null) {
                 if (!File.Exists(python)) { failed = true; return; }
@@ -50,24 +64,26 @@ sealed class ControlTranslator : IDisposable
             }
             var json = new JavaScriptSerializer();
             // Requests contain English; the worker emits ASCII escaped JSON.
-            worker.StandardInput.WriteLine(json.Serialize(pending));
+            worker.StandardInput.WriteLine(json.Serialize(batch));
             var response = worker.StandardOutput.ReadLineAsync();
             if (!response.Wait(10000) || response.Result == null) { failed = true; return; }
             var translated = json.Deserialize<string[]>(response.Result);
-            if (translated.Length != pending.Count) { failed = true; return; }
-            if (cache.Count + pending.Count > 1024) cache.Clear();
-            for (int i=0; i < pending.Count; i++) cache[pending[i]] = translated[i];
+            if (translated.Length != batch.Length) { failed = true; return; }
+            lock (cache) {
+                if (cache.Count + batch.Length > 1024) cache.Clear();
+                for (int i = 0; i < batch.Length; i++) cache[batch[i]] = translated[i];
+            }
         } catch (IOException) { failed = true; }
           catch (InvalidOperationException) { failed = true; }
           catch (System.ComponentModel.Win32Exception) { failed = true; }
           catch (AggregateException) { failed = true; }
-        finally { pending.Clear(); if (failed) Dispose(); }
+        finally { lock (cache) running = false; if (failed) Dispose(); }
     }
 
     internal string Get(string label)
     {
         string result;
-        return cache.TryGetValue(label, out result) && result.Any(c => c >= '\u3400' && c <= '\u9fff') ? "≈" + result : null;
+        lock (cache) return cache.TryGetValue(label, out result) && result.Any(c => c >= '\u3400' && c <= '\u9fff') ? "≈" + result : null;
     }
 
     public void Dispose()

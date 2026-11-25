@@ -32,7 +32,7 @@ $refs = @('System.Windows.Forms.dll','System.Drawing.dll','System.Web.Extensions
           'WPF\UIAutomationTypes.dll','WPF\WindowsBase.dll') | ForEach-Object { '/r:' + (Join-Path $framework $_) }
 $artifact = Join-Path $buildDir 'DesktopZh.exe'
 try {
-    & $csc /nologo /target:winexe /optimize+ /codepage:65001 "/out:$artifact" @refs (Join-Path $PSScriptRoot 'DesktopZh.cs') (Join-Path $PSScriptRoot 'ControlTranslator.cs')
+    & $csc /nologo /target:winexe /optimize+ /codepage:65001 "/out:$artifact" @refs (Join-Path $PSScriptRoot 'DesktopZh.cs') (Join-Path $PSScriptRoot 'ControlTranslator.cs') (Join-Path $PSScriptRoot 'NativeCatalog.cs')
     if ($LASTEXITCODE) { throw '无法编译桌面中文显示程序。' }
     [IO.Directory]::CreateDirectory($installDir) | Out-Null
     $shell = New-Object -ComObject WScript.Shell
