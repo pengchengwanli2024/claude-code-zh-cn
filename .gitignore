@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+plugins/zh-ui/.claude-plugin/types/
+plugins/zh-ui/tsconfig.json
+.venv/

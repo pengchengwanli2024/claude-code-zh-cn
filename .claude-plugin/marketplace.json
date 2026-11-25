@@ -1,0 +1,16 @@
+{
+  "name": "zh-ui-community",
+  "owner": {
+    "name": "zh-ui contributors"
+  },
+  "plugins": [
+    {
+      "name": "zh-ui",
+      "source": "./plugins/zh-ui",
+      "description": "Claude Code 简体中文界面与离线词典"
+    }
+  ],
+  "metadata": {
+    "description": "Claude Code ????????"
+  }
+}

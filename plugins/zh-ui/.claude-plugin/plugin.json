@@ -1,0 +1,9 @@
+{
+  "name": "zh-ui",
+  "version": "0.1.0",
+  "description": "中文运行状态、操作提示与离线界面词典",
+  "author": {
+    "name": "zh-ui contributors"
+  },
+  "license": "MIT"
+}
